@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(Rigidbody2D), typeof(Animator))]
 public class Player_Movement : MonoBehaviour
 {
     private Rigidbody2D _playerRB;
-
+    private Animator _playerAnimator;
     [Header("Horizontal move")]
     [SerializeField]private float speed;
 
@@ -16,7 +16,7 @@ public class Player_Movement : MonoBehaviour
     [SerializeField] private bool _airControll;
     [SerializeField] private Transform _groundCheck;
     [SerializeField] private LayerMask _whatIsGround;
-    bool _canJump;
+    bool _grounded;
     bool _secondJump;
     bool _checkJumpRange;
 
@@ -35,18 +35,18 @@ public class Player_Movement : MonoBehaviour
     void Start()
     {
         _playerRB = GetComponent<Rigidbody2D>();
+        _playerAnimator = GetComponent<Animator>();
     }
 
     private void FixedUpdate()
     {
         if (Physics2D.OverlapCircle(_groundCheck.position, _radius, _whatIsGround))
         {
-            _canJump = true;
+            _grounded = true;
             _secondJump = false;
-            _checkJumpRange = false;
         }
         else
-            _canJump = false;
+            _grounded = false;
 
         _canStand = !Physics2D.OverlapCircle(_cellCheck.position, _radius, _whatIsCell);
 
@@ -66,13 +66,19 @@ public class Player_Movement : MonoBehaviour
         Gizmos.DrawWireSphere(_cellCheck.position, _radius);
     }
 
-    public void Move(float move,  bool crawling, bool jump)
+    public void Move(float move,  bool crouch, bool jump)
     {
-        if (move != 0 && (_canJump || _airControll))
+        #region Animation
+        _playerAnimator.SetFloat("Speed", Mathf.Abs(move));
+        _playerAnimator.SetBool("Jump", !_grounded);
+        _playerAnimator.SetBool("Crouch", !_headCollider.enabled);
+        #endregion 
+
+        if (move != 0 && (_grounded || _airControll))
         {
             _playerRB.velocity = new Vector2(speed * move, _playerRB.velocity.y);
         }
-        else if (move == 0 && _canJump)
+        else if (move == 0 && _grounded)
             _playerRB.velocity = new Vector2(0, _playerRB.velocity.y);
 
         if (_faceRight && move < 0)
@@ -80,19 +86,24 @@ public class Player_Movement : MonoBehaviour
         else if (!_faceRight && move > 0)
             Flip();
 
-        if (jump && (_canJump || !_secondJump))
+        if (jump)
         {
-            _secondJump = true;
-            _jumpY = transform.position.y;
-            _checkJumpRange = true;
-            _playerRB.AddForce(Vector2.up * _jumpPower);
+            if(_grounded)
+            {
+                _playerRB.velocity = new Vector2(_playerRB.velocity.x, _jumpPower);
+            }
+            else if(!_secondJump)
+            {
+                _secondJump = true;
+                _playerRB.velocity = new Vector2(_playerRB.velocity.x, _jumpPower);
+            }
         }
 
-        if (crawling)
+        if (crouch)
         {
             _headCollider.enabled = false;
         }
-        else if (!crawling && _canStand)
+        else if (!crouch && _canStand)
         {
             _headCollider.enabled = true;
         }
